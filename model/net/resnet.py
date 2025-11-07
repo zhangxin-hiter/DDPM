@@ -1,13 +1,26 @@
 """
 resnet.py
 
-考虑使用resnet用于DDPM预测噪声
-目前用于Unet提升网络性能
+A Pytorch implementation of the ResNet
+
+Author: ZhangXin
+Date: 2025/11/7
 """
 
+import datetime
+import argparse
+import os
+import json
+
+import tqdm
 import torch
+import torch.optim as optim
 import torch.nn as nn
-import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from torchvision import (
+    transforms,
+    datasets
+)
 
 class BasicBlock(nn.Module):
     """
@@ -130,7 +143,7 @@ class Bottleneck(nn.Module):
 
         return out
 
-class resnet(nn.Module):
+class ResNet(nn.Module):
     """
     resnet网络实现
     """
@@ -148,7 +161,7 @@ class resnet(nn.Module):
                     分类数
         """
 
-        super(resnet, self).__init__()
+        super(ResNet, self).__init__()
         self.include_top = include_top
         self.in_channels = 64
 
@@ -206,7 +219,131 @@ class resnet(nn.Module):
         return x
 
 def resnet34(num_classes=1000, include_top=True):
-    return resnet(block=BasicBlock, block_num=[3, 4, 6, 3], num_classes=num_classes, include_top=include_top)
+    return ResNet(block=BasicBlock, block_num=[3, 4, 6, 3], num_classes=num_classes, include_top=include_top)
 
 def resnet101(num_classes=1000, include_top=True):
-    return resnet(block=Bottleneck, block_num=[3, 4, 23, 3], num_classes=num_classes, include_top=include_top)
+    return ResNet(block=Bottleneck, block_num=[3, 4, 23, 3], num_classes=num_classes, include_top=include_top)
+
+def train():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch_size", type=int, default=4, help="size of batches")
+    parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
+    args = parser.parse_args()
+
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    print(device)
+
+    weight_path = os.path.join("checkpoints/net", "alexnet.pth")
+
+    image_path = os.path.join("assets", "flower_photos/train")
+
+    transformer = transforms.Compose([
+        transforms.RandomResizedCrop([227, 227]),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    ])
+
+    # 数据集准备
+    image_set = datasets.ImageFolder(image_path, transform=transformer)
+
+    class_dict = dict((index, classes) for (classes, index) in image_set.class_to_idx.items())
+
+    with open("class_indices.json", "w") as file:
+        class_str = json.dumps(class_dict, indent=4)
+        file.write(class_str)
+
+    image_loader = DataLoader(dataset=image_set, batch_size=args.batch_size, shuffle=True, num_workers=0)
+
+    net = resnet34(num_classes=5).to(device)
+    # load weight
+    if os.path.exists(weight_path):
+        net.load_state_dict(torch.load(weight_path))
+        print("load weight successfully")
+    else:
+        print("load weight fail")
+
+    optimizer = optim.Adam(net.parameters(), lr=args.lr)
+    # loss function
+    criterion = nn.CrossEntropyLoss()
+
+    epoch = 0
+
+    start_time = datetime.datetime.now()
+
+    while True:
+        running_loss = 0.0
+        for i, (image, label) in enumerate(tqdm.tqdm(image_loader)):
+            net.train()
+            image = image.to(device)
+            label = label.to(device)
+            optimizer.zero_grad()
+            output = net(image)
+            loss = criterion(output, label)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+        print(f"{datetime.datetime.now() - start_time} epoch: {epoch} train_loss: {running_loss/len(image_loader)}")
+        epoch += 1
+        torch.save(net.state_dict(), weight_path)
+
+def predict():
+
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    print(device)
+
+    val_path = os.path.join("assets", "flower_photos/train")
+
+    transformer = transforms.Compose([
+        transforms.Resize((227, 227)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    ])
+
+    data_set = datasets.ImageFolder(val_path, transformer)
+
+    data_loader = DataLoader(dataset=data_set, batch_size=2, shuffle=True, num_workers=0)
+
+    checkpoints_path = os.path.join("checkpoints", "net/resnet34.pth")
+
+    net = resnet34(num_classes=5).to(device)
+    if os.path.exists(checkpoints_path):
+        net.load_state_dict(torch.load(checkpoints_path))
+        print("load weight successfully")
+    else:
+        print("load weight fail")
+
+    prediction_log = open("checkpoints_path.txt", "w")
+
+    with open("class_indices.json", "r") as file:
+        class_index = json.load(file)
+
+    correct_count = 0
+    total_samples = len(data_set)
+
+    for images, labels in tqdm.tqdm(data_loader):
+        net.eval()
+        with torch.no_grad():
+            images = images.to(device)
+            labels = labels.to(device)
+            output = net(images)
+            prediction = torch.argmax(output, dim=1)
+            correct_count += (prediction == labels).sum().item()
+            for i in range(len(output)):
+                if (prediction == labels)[i]:
+                    prediction_log.write(f"{class_index[str(labels[i].item())]}  {class_index[str(prediction[i].item())]}  True\n")
+                else:
+                    prediction_log.write(f"{class_index[str(labels[i].item())]}  {class_index[str(prediction[i].item())]}  False\n")
+    prediction_log.write(f"right classify percent: {correct_count / total_samples}")
+
+    print(f"right classify percent: {correct_count / total_samples}")
+
+def main():
+
+    predict()
+
+if __name__ == "__main__":
+    main()
