@@ -1,21 +1,22 @@
 """
 predict.py
 """
+import os.path
 
 import torch
 from torchvision import transforms
 from PIL import Image
 import json
-from model.net import resnet
+from model.net import resnet, alexnet
 import matplotlib.pyplot as plt
 
 def main():
 
-    image = Image.open("image.png")
+    image = Image.open("image.jpg")
     plt.imshow(image)
 
     data_transform = transforms.Compose([
-        transforms.Resize((224, 224)), 
+        transforms.Resize((227, 227)),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
@@ -31,10 +32,12 @@ def main():
         print(e)
         exit(-1)
 
-    net = resnet.resnet101(num_classes=5)
+    net = alexnet.AlexNet(in_channels=3, out_features=5)
 
-    model_weight_path = "checkpoints/net/resnet101.pth"
-    net.load_state_dict(torch.load(model_weight_path))
+    model_weight_path = "checkpoints/net/alexnet.pth"
+    if os.path.exists(model_weight_path):
+        net.load_state_dict(torch.load(model_weight_path))
+        print("load weight succesfully")
 
     net.eval()
     with torch.no_grad():

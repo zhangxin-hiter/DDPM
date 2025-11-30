@@ -144,7 +144,7 @@ def train():
 
     weight_path = os.path.join("checkpoints/net", "alexnet.pth")
 
-    image_path = os.path.join("assets", "flower_photos/train")
+    image_path = os.path.join("assets", "cifar-10")
 
     transformer = transforms.Compose([
         transforms.RandomResizedCrop([227, 227]),
@@ -154,7 +154,7 @@ def train():
     ])
 
     # 数据集准备
-    image_set = datasets.ImageFolder(image_path, transform=transformer)
+    image_set = datasets.CIFAR10(root=image_path, train=True, download=False, transform=transformer)
 
     class_dict = dict((index, classes) for (classes, index) in image_set.class_to_idx.items())
 
@@ -164,7 +164,7 @@ def train():
 
     image_loader = DataLoader(dataset=image_set, batch_size=args.batch_size, shuffle=True, num_workers=0)
 
-    net = AlexNet(in_channels=3, out_features=5).to(device)
+    net = AlexNet(in_channels=3, out_features=10).to(device)
     # load weight
     if os.path.exists(weight_path):
         net.load_state_dict(torch.load(weight_path))
@@ -203,7 +203,7 @@ def predict():
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    val_path = os.path.join("assets", "flower_photos/train")
+    val_path = os.path.join("assets", "cifar-10")
 
     transformer = transforms.Compose([
         transforms.Resize((227, 227)),
@@ -211,13 +211,13 @@ def predict():
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
 
-    data_set = datasets.ImageFolder(val_path, transformer)
+    data_set = datasets.CIFAR10(root=val_path, train=False, transform=transformer, download=False)
 
     data_loader = DataLoader(dataset=data_set, batch_size=2, shuffle=True, num_workers=0)
 
     checkpoints_path = os.path.join("checkpoints", "net/alexnet.pth")
 
-    net = AlexNet(3, 5).to(device)
+    net = AlexNet(3, 10).to(device)
     if os.path.exists(checkpoints_path):
         net.load_state_dict(torch.load(checkpoints_path))
         print("load weight successfully")
