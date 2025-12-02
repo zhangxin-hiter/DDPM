@@ -52,4 +52,16 @@ class DiffusionTrainer(nn.Module):
         self.model = model
         self.T = T
 
-        
+        # 线性方差调度 β_t
+        self.register_buffer('betas', torch.linspace(beta_1, beta_T, steps=T).double())
+        alphas = 1 - self.betas
+        alphas_bar = torch.cumprod(alphas, dim=0)
+
+        # 预计算两个常用系数
+        self.register_buffer("sqrt_alphas_bar", torch.sqrt(alphas_bar))
+        self.register_buffer("sqrt_one_minus_alphas_bar", torch.sqrt(1 - alphas_bar))
+
+    def forward(self, x_0):
+        """
+        一次训练迭代
+        """
