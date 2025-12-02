@@ -64,4 +64,20 @@ class DiffusionTrainer(nn.Module):
     def forward(self, x_0):
         """
         一次训练迭代
+
+        x_0：Tensor
         """
+
+        # 采样时刻
+        t = torch.randint(self.T, size=(x_0.shape[0], ), device=x_0.device)
+
+        # 采样噪声
+        noise = torch.randn_like(x_0)
+
+        # 扩散到 x_t
+        x_t = extract(self.sqrt_alphas_bar, t, x_0.shape) * x_0 + extract(self.sqrt_one_minus_alphas_bar. t, x_0.shape) * noise
+
+        pred_noise = self.model(x_t, t)
+        loss = F.mse_loss(pred_noise, noise, reduction="none")
+        
+        return loss
