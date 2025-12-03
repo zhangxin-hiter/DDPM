@@ -81,3 +81,32 @@ class DiffusionTrainer(nn.Module):
         loss = F.mse_loss(pred_noise, noise, reduction="none")
         
         return loss
+    
+class DiffusionSampler(nn.Module):
+    """
+    从纯噪声 x_T 逐步去噪到 x_0
+    """
+
+    def __init__(self, model, beta_1, beta_T, T):
+        super(DiffusionSampler, self).__init__()
+        
+        self.model = model
+        self.T = T
+
+        # 线性方差调度
+        self.register_buffer("betas", torch.linspace(beta_1, beta_T, T).double())
+        alphas = 1 - self.betas
+        alphas_bar = torch.cumprod(alphas, dim=0)
+        alphas_bar_prev = F.pad(alphas_bar, [1, 0], value=1)[:T]
+
+        # 计算反向过程均值系数
+        self.register_buffer("coeff1", torch.sqrt(1. / alphas))
+        self.register_buffer("coeff2", self.coeff1 * (1. - alphas) / torch.sqrt(1. - alphas_bar))
+
+        # 计算反向过程方差
+        self.register_buffer("posterior_var", self.betas * (1. - self.alphas_bar_prev) / (1. - self.alphas_bar))
+
+    # ----------------------------------- 辅助函数 ----------------------------------------
+    def predict_xt_prev_mean_from_eps(self, x_t. t. eps):
+        
+
