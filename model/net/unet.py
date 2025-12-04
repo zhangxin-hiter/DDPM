@@ -2,7 +2,6 @@
 UNet.py
 """
 
-from numpy import dtype
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -159,7 +158,8 @@ class UpSample(nn.Module):
 class AttnBlock(nn.Module):
     """
     自注意力模块，常用卷积特征图上提取全局依赖
-    用于U-Net的中间层或高分辨率特征层"""
+    用于U-Net的中间层或高分辨率特征层
+    """
 
     def __init__(self, in_ch):
         """
@@ -232,7 +232,7 @@ class ResBlock(nn.Module):
     残差块实现
     """
 
-    def __init__(self, in_ch: int, out_ch: int, dropout: float, attn: bool = False):
+    def __init__(self, in_ch: int, out_ch: int, tdim: int, dropout: float, attn: bool = False):
         """
         初始化函数
         
@@ -263,11 +263,11 @@ class ResBlock(nn.Module):
                       stride=1, 
                       padding=1)
         )
-        # # 时间嵌入投影
-        # self.temb_proj = nn.Sequential(
-        #     Swish(), 
-        #     nn.Linear(in_features=tdim, out_features=out_ch)
-        # )
+        # 时间嵌入投影
+        self.temb_proj = nn.Sequential(
+            Swish(), 
+            nn.Linear(in_features=tdim, out_features=out_ch)
+        )
         # 第二层卷积块
         self.block2 = nn.Sequential(
             nn.GroupNorm(num_groups=4, num_channels=out_ch),
@@ -308,13 +308,13 @@ class ResBlock(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)    
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, temb) -> Tensor:
         """
         前向过程
         """
 
         h = self.block1(x)
-        # h += self.temb_proj(temb)[:, :, None, None]
+        h += self.temb_proj(temb)[:, :, None, None]
         h = self.block2(h)
         h += self.short_cut(x)
         h = self.attn(h)
@@ -422,9 +422,9 @@ class UNet(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)  
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor, t) -> Tensor:
         # Timestep embedding
-        # temb = self.tim_embedding(t)
+        temb = self.tim_embedding(t)
         # Downsampling
         h = self.head(x)
         hs = [h]
