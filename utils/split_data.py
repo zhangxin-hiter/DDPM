@@ -3,7 +3,7 @@ split_data.py
 
 分割数据集，将指定数据集分割为训练集和测试集，可指定分割比
 """
-
+import sys
 import random
 import os
 from shutil import copy
@@ -51,4 +51,4 @@ def main():
     print("processing done!")
     
 if __name__ == "__main__":
-    main()
+    print(sys.path)

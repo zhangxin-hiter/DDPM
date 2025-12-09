@@ -2,11 +2,12 @@
 UNet.py
 """
 
+import math
+
 import torch
 from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
-import math
 
 class Swish(nn.Module):
     """
@@ -118,7 +119,7 @@ class DownSample(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, temb):
         x = self.main(x)
         return x
     
@@ -147,7 +148,7 @@ class UpSample(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, temb):
         _, _, H, W = x.shape
         x = F.interpolate(x, 
                           scale_factor=2, 
@@ -366,6 +367,7 @@ class UNet(nn.Module):
                 self.downblocks.append(ResBlock(
                     in_ch=now_ch,
                     out_ch=out_ch,
+                    tdim=tdim,
                     dropout=dropout,
                     attn=(i in attn)
                 ))
@@ -378,10 +380,12 @@ class UNet(nn.Module):
         self.middleblocks = nn.ModuleList([
             ResBlock(in_ch=now_ch,
                      out_ch=now_ch,
+                     tdim=tdim,
                      dropout=dropout,
                      attn=True),
             ResBlock(in_ch=now_ch,
                      out_ch=now_ch,
+                     tdim=tdim,
                      dropout=dropout,
                      attn=False)
         ])
@@ -393,6 +397,7 @@ class UNet(nn.Module):
                 self.upblocks.append(ResBlock(
                     in_ch=chs.pop() + now_ch,
                     out_ch=out_ch,
+                    tdim=tdim,
                     dropout=dropout,
                     attn=(i in attn)
                 ))
@@ -405,7 +410,7 @@ class UNet(nn.Module):
             nn.GroupNorm(32, now_ch),
             Swish(),
             nn.Conv2d(in_channels=now_ch,
-                      out_channels=21,
+                      out_channels=3,
                       kernel_size=3,
                       stride=1,
                       padding=1)
@@ -429,17 +434,18 @@ class UNet(nn.Module):
         h = self.head(x)
         hs = [h]
         for layer in self.downblocks:
-            h = layer(h)
+            h = layer(h, temb)
             hs.append(h)
         # Middle
         for layer in self.middleblocks:
-            h = layer(h)
+            h = layer(h, temb)
         # Unsampling
         for layer in self.upblocks:
             if isinstance(layer, ResBlock):
                 h = torch.cat([h, hs.pop()], dim=1)
-            h = layer(h)
+            h = layer(h, temb)
         h = self.tail(h)
 
         assert len(hs) == 0
         return h
+    
