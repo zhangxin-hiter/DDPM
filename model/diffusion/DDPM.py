@@ -1,10 +1,11 @@
 """
-diffusionmodel.py
+DDPM.py
 """
 
 import os
 import sys
 sys.path.append(os.getcwd())
+import argparse
 
 import tqdm
 import torch
@@ -164,6 +165,14 @@ class DiffusionSampler(nn.Module):
         x_0 = x_t
         return torch.clip(x_0, -1 , 1)
 
+def parse_arg():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch_size", type=int, default=64, help="size of batch")
+    parser.add_argument("--image_channels",type=int, default=3, help="number of image channels")
+    parser.add_argument("--image_size", type=int, default=32, help="size of image")
+    args = parser.parse_args()
+    return args
+
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -237,8 +246,8 @@ def predict():
                                beta_T=0.02, 
                                T=1000).to(device)
     with torch.no_grad():
-        x = torch.randn(1, 3, 32, 32).to(device=device)
-        save_image(sampler(x), f"save_images/diffusion/diffusionmodel/img.png", normalize=True)
+        x = torch.randn(36, 3, 32, 32).to(device=device)
+        save_image(sampler(x), f"save_images/diffusion/diffusionmodel/img.png", nrow=6, normalize=True)
 
 def main():
     predict()

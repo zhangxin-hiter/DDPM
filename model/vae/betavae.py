@@ -1,7 +1,7 @@
 """
 betavae.py
 
-Author: ZhangXin1`
+Author: ZhangXin
 Date: 2025/11/14
 """
 

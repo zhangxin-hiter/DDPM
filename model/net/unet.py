@@ -448,4 +448,3 @@ class UNet(nn.Module):
 
         assert len(hs) == 0
         return h
-    
